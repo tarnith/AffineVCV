@@ -1,0 +1,16 @@
+{
+  "slug": "AffineLFO",
+  "name": "AffineLFO",
+  "version": "0.0.1",
+  "license": "GPLV3",
+  "brand": "AffineLabs",
+  "author": "Tarnith",
+  "authorEmail": "VCV@tarnith.com",
+  "authorUrl": "https://tarnith.com",
+  "pluginUrl": "https://tarnith.com",
+  "manualUrl": "\u001b[A\u001b[B",
+  "sourceUrl": "\u00c2\u2013https://github.com/tarnith/AffineLabs",
+  "donateUrl": "",
+  "changelogUrl": "",
+  "modules": []
+}
