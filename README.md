@@ -1,2 +1,2 @@
 # AffineVCV
-Repository for the AffineLabs plugins written for VCV Rack
+Repository for the AffineVCV plugins written for VCV Rack
