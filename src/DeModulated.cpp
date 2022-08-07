@@ -78,7 +78,6 @@ struct DeModulated : Module {
         configInput(FM_INPUT, "FM");
 
         configOutput(POLYPHASE_OUTPUT, "PolyPhase Out");
-        
         configOutput(PHASE0_OUTPUT, "Phase 0");
         configOutput(PHASE1_OUTPUT, "Phase 1");
         configOutput(PHASE2_OUTPUT, "Phase 2");
@@ -125,11 +124,14 @@ struct DeModulated : Module {
        
                 if (outputs[POLYPHASE_OUTPUT].isConnected()) // Only output accumulator if cable is attached
                     //outputs[POLYPHASE_OUTPUT].setVoltage((std::sin((phases[c]+((params[OFFSET_PARAM].getValue()*DEG_TO_RAD)*c))+inputs[OFFSET_INPUT].getVoltage(c))*5.), c);
+
                     outputs[POLYPHASE_OUTPUT].setVoltage(std::sin(phases[c]*TAU+(((params[OFFSET_PARAM].getValue()*(c*DEG_TO_RAD))+(inputs[OFFSET_INPUT].getVoltage(c)*offsetAmtParam))))*5.,c);
                 
                 if (outputs[c+1].isConnected()) // Same as above but iterating through mono outs
                     //outputs[c+1].setVoltage((std::sin((phases[c]+((params[OFFSET_PARAM].getValue()*DEG_TO_RAD)*c))+inputs[OFFSET_INPUT].getVoltage(c))*5.), c);
-                    outputs[c+1].setVoltage((std::sin(phases[c]*TAU+(params[OFFSET_PARAM].getValue()*(c*DEG_TO_RAD))+inputs[OFFSET_INPUT].getVoltage(c)*offsetAmtParam))*5.,c);
+                    //outputs[c+1].setVoltage((std::sin(phases[c]*TAU+(params[OFFSET_PARAM].getValue()*(c*DEG_TO_RAD))+inputs[OFFSET_INPUT].getVoltage(c)*offsetAmtParam))*5.,c);
+                    //outputs[c+1].setVoltage(std::sin(phases[c]*TAU+(((params[OFFSET_PARAM].getValue()*(c*DEG_TO_RAD))+(inputs[OFFSET_INPUT].getVoltage(c)*offsetAmtParam))))*5.,c);
+                    outputs[c+1].setVoltage(std::sin((phases[c]*TAU)+(params[OFFSET_PARAM].getValue()*(c*DEG_TO_RAD))+(inputs[OFFSET_INPUT].getVoltage(c)*offsetAmtParam))*5.);
 
             }
             else{ // Internal accumulator is disabled
@@ -137,7 +139,7 @@ struct DeModulated : Module {
                 
                 if (outputs[POLYPHASE_OUTPUT].isConnected())
                     if (inputs[PHASE_INPUT].getChannels()==1)
-                        outputs[POLYPHASE_OUTPUT].setVoltage(std::sin((inputs[PHASE_INPUT].getVoltage()*TAU)+params[OFFSET_PARAM].getValue()*(c*DEG_TO_RAD))*5.,c);
+                        outputs[POLYPHASE_OUTPUT].setVoltage(std::sin((inputs[PHASE_INPUT].getVoltage()*TAU)+(params[OFFSET_PARAM].getValue()*(c*DEG_TO_RAD))+(inputs[OFFSET_INPUT].getVoltage(c)*offsetAmtParam))*5.,c);
                     else
                         outputs[POLYPHASE_OUTPUT].setVoltage(std::sin((inputs[PHASE_INPUT].getVoltage(c)*TAU)+(params[OFFSET_PARAM].getValue()*(c*DEG_TO_RAD))+(inputs[OFFSET_INPUT].getVoltage(c)*offsetAmtParam))*5., c);
 
@@ -145,7 +147,7 @@ struct DeModulated : Module {
                     if (inputs[PHASE_INPUT].getChannels()==1)
                         outputs[c+1].setVoltage(std::sin((inputs[PHASE_INPUT].getVoltage()*TAU)+params[OFFSET_PARAM].getValue()*(c*DEG_TO_RAD)+(inputs[OFFSET_INPUT].getVoltage(c)*offsetAmtParam))*5.);
                     else
-                        outputs[c+1].setVoltage(std::sin((inputs[PHASE_INPUT].getVoltage(c)*TAU)+(params[OFFSET_PARAM].getValue()*(c*DEG_TO_RAD))+(inputs[OFFSET_INPUT].getVoltage(c)*offsetAmtParam))*5., c);
+                        outputs[c+1].setVoltage(std::sin((inputs[PHASE_INPUT].getVoltage(c)*TAU)+(params[OFFSET_PARAM].getValue()*(c*DEG_TO_RAD))+(inputs[OFFSET_INPUT].getVoltage(c)*offsetAmtParam))*5.);
 
                         
             }
