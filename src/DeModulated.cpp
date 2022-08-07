@@ -8,7 +8,8 @@
 // will be used later for optimization once brute force implementation is done
 //using simd::float_4;
 
-
+// Generate a point along a circle with
+// center point x,y, radius R, angle theta
 Vec circlePoint(float x, float y, float radius, float angle){
     Vec result(x,y);
 
@@ -58,17 +59,17 @@ struct DeModulated : Module {
 	};
 
     //float_4 phases[4];
-    float phases[15];
+    float phases[16];
 
 	DeModulated() {
 		config(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS);
 
 		configParam(RATE_PARAM, 0.f, 20000.f, 1.f, "Rate", " hz");
 		configSwitch(ACCUMULATE_PARAM, 0.f, 1.f, 0.f, "Accumulate",{"Off","On"});
-		configParam(FMAMT_PARAM, -1.f, 1.f, 0.f, "Frequency Modulation", "%", 0.f, 100.f);
-        configParam(OFFSET_PARAM, -TAU, TAU, TAU/16., "Phase Offset", "rads");
+		configParam(FMAMT_PARAM, -1.f, 1.f, 0.f, "Frequency Modulation", " %", 0.f, 100.f);
+        configParam(OFFSET_PARAM, -TAU, TAU, TAU/16., "Phase Offset", " rads");
         // Param for attenuating/amplifying Offset Input amount
-        configParam(OFFSETAMT_PARAM, -1.f, 1.f, 0.f, "Offset Modulation", "%", 0.f, 100.f);
+        configParam(OFFSETAMT_PARAM, -1.f, 1.f, 0.f, "Offset Depth", " %", 0.f, 100.f);
 
         configInput(PHASE_INPUT, "Phase");
         configInput(OFFSET_INPUT, "Offset");
@@ -100,23 +101,46 @@ struct DeModulated : Module {
 	
         float rateParam = params[RATE_PARAM].getValue();
         bool accumulateParam = params[ACCUMULATE_PARAM].getValue();
+        float fmAmtParam = params[FMAMT_PARAM].getValue();
+
 
 		int channels = 16;
         int numIn = inputs[PHASE_INPUT].getChannels();
+        int numFM = inputs[FM_INPUT].getChannels();
+        //int numOff = inputs[OFFSET_INPUT].isMonophonic
+
+        
         float polyIn[numIn];
 
         for (int c = 0;c < channels; c++){
-            polyIn[c] = inputs[PHASE_INPUT].getPolyVoltage(c);
-            outputs[POLYPHASE_OUTPUT].setVoltage(std::sin(polyIn[c]));
-            outputs[c+1].setVoltage(std::sin(polyIn[c]));;
 
+            if(accumulateParam){ // Internal accumulator is enabled
+
+                phases[c] += (rateParam*inputs[FM_INPUT].getVoltage(c))*args.sampleTime; // Advance phases by tuning freq
+                // Wrap float phases
+                if (phases[c] >= 1.){
+                    phases[c] = -1.;
+                }
+
+                if (outputs[POLYPHASE_OUTPUT].isConnected())
+                    outputs[POLYPHASE_OUTPUT].setVoltage((std::sin(phases[c]*TAU+inputs[OFFSET_INPUT].getVoltage(c))*5.)-2.5, c);
+            }
+            else{ // Internal accumulator is disabled
+                polyIn[c] = inputs[PHASE_INPUT].getPolyVoltage(c);
+                if (outputs[POLYPHASE_OUTPUT].isConnected())
+                    outputs[POLYPHASE_OUTPUT].setVoltage(std::sin(polyIn[c]));
+                if (outputs[c+1].isConnected())
+                    outputs[c+1].setVoltage(std::sin(polyIn[c]*TAU)*10.);
+            }
 
         }
 			
 
-		
+		// Set Polyphase to output all channels
         outputs[POLYPHASE_OUTPUT].setChannels(channels);
         
+        // Need to macro this at some point
+        // Set each output to a single channel
         outputs[PHASE0_OUTPUT].setChannels(1);
         outputs[PHASE1_OUTPUT].setChannels(1);
         outputs[PHASE2_OUTPUT].setChannels(1);
@@ -146,7 +170,7 @@ struct DeModulatedWidget : ModuleWidget {
 
 		setModule(module);
 		setPanel(createPanel(asset::plugin(pluginInstance, "res/DeModulated.svg")));
-
+        
 
 		addChild(createWidget<ScrewSilver>(Vec(RACK_GRID_WIDTH, 0)));
 		addChild(createWidget<ScrewSilver>(Vec(box.size.x - 2 * RACK_GRID_WIDTH, 0)));
@@ -158,6 +182,12 @@ struct DeModulatedWidget : ModuleWidget {
 		addInput(createInputCentered<PJ301MPort>(mm2px(circlePoint(30.,20.,10.,1.)), module, DeModulated::PHASE_INPUT));
 		addInput(createInputCentered<PJ301MPort>(mm2px(circlePoint(28.,20.,10.,2.)), module, DeModulated::OFFSET_INPUT));
 		
+        addParam(createParamCentered<VCVLatch>(mm2px(Vec(10.,10.)), module, DeModulated::ACCUMULATE_PARAM));
+        addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(20.,10.)), module, DeModulated::RATE_PARAM));
+        addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(30.,10.)), module, DeModulated::FMAMT_PARAM));
+        addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(40.,10.)), module, DeModulated::OFFSET_PARAM));
+        addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(50.,10.)), module, DeModulated::OFFSETAMT_PARAM));
+
         const float offset = ((360./16.))*DEG_TO_RAD;
         const float radius = 26.;
         Vec circleCentre(30.,90.);
