@@ -59,7 +59,9 @@ struct DeModulated : Module {
 	};
 
     //float_4 phases[4];
+    //float deltaPhase[16];
     float phases[16];
+    float deltaPhase = 0;
 
 	DeModulated() {
 		config(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS);
@@ -67,7 +69,7 @@ struct DeModulated : Module {
 		configParam(RATE_PARAM, 0.f, 20000.f, 1.f, "Rate", " hz");
 		configSwitch(ACCUMULATE_PARAM, 0.f, 1.f, 0.f, "Accumulate",{"Off","On"});
 		configParam(FMAMT_PARAM, -1.f, 1.f, 0.f, "Frequency Modulation", " %", 0.f, 100.f);
-        configParam(OFFSET_PARAM, -TAU, TAU, TAU/16., "Phase Offset", " rads");
+        configParam(OFFSET_PARAM, -360., 360., 360./16., "Phase Offset", " deg");
         // Param for attenuating/amplifying Offset Input amount
         configParam(OFFSETAMT_PARAM, -1.f, 1.f, 0.f, "Offset Depth", " %", 0.f, 100.f);
 
@@ -102,7 +104,8 @@ struct DeModulated : Module {
         float rateParam = params[RATE_PARAM].getValue();
         bool accumulateParam = params[ACCUMULATE_PARAM].getValue();
         float fmAmtParam = params[FMAMT_PARAM].getValue();
-
+        float offsetAmtParam = params[OFFSETAMT_PARAM].getValue();
+        
 
 		int channels = 16;
         int numIn = inputs[PHASE_INPUT].getChannels();
@@ -112,28 +115,34 @@ struct DeModulated : Module {
        
 
         for (int c = 0;c < channels; c++){
-
+            
             if(accumulateParam){ // Internal accumulator is enabled
+         
+                deltaPhase = (rateParam)*args.sampleTime; 
 
+                phases[c] += deltaPhase;
+                phases[c] -= std::floor(phases[c]);
+       
+                if (outputs[POLYPHASE_OUTPUT].isConnected()) // Only output accumulator if cable is attached
+                    //outputs[POLYPHASE_OUTPUT].setVoltage((std::sin((phases[c]+((params[OFFSET_PARAM].getValue()*DEG_TO_RAD)*c))+inputs[OFFSET_INPUT].getVoltage(c))*5.), c);
+                    outputs[POLYPHASE_OUTPUT].setVoltage(std::sin(phases[c]*TAU+((params[OFFSET_PARAM].getValue()+(inputs[OFFSET_INPUT].getVoltage(c)*offsetAmtParam))*(c*DEG_TO_RAD)))*5.,c);
                 
-                // Wrap float phases
-                if (phases[c] >= 1.){
-                    phases[c] = -1.;
-                }
-                phases[c] += (rateParam+(inputs[FM_INPUT].getVoltage(c)*fmAmtParam))*args.sampleTime; // Advance phases by tuning freq
-
-                if (outputs[POLYPHASE_OUTPUT].isConnected())
-                    outputs[POLYPHASE_OUTPUT].setVoltage((std::sin((phases[c]*TAU)+inputs[OFFSET_INPUT].getVoltage(c))*5.)-2.5, c);
+                if (outputs[c+1].isConnected()) // Same as above but iterating through mono outs
+                    //outputs[c+1].setVoltage((std::sin((phases[c]+((params[OFFSET_PARAM].getValue()*DEG_TO_RAD)*c))+inputs[OFFSET_INPUT].getVoltage(c))*5.), c);
+                    outputs[c+1].setVoltage((std::sin(phases[c]*TAU+((params[OFFSET_PARAM].getValue()*offsetAmtParam)*(c*DEG_TO_RAD))))*5.,c);
 
             }
             else{ // Internal accumulator is disabled
 
                 
                 if (outputs[POLYPHASE_OUTPUT].isConnected())
-                    outputs[POLYPHASE_OUTPUT].setVoltage(std::sin(inputs[PHASE_INPUT].getVoltage(c)*TAU)*10., c);
+                    if (inputs[PHASE_INPUT].getChannels()==1)
+                        outputs[POLYPHASE_OUTPUT].setVoltage(std::sin((inputs[PHASE_INPUT].getVoltage()*TAU)+params[OFFSET_PARAM].getValue()*(c*DEG_TO_RAD))*5.,c);
+                    else
+                        outputs[POLYPHASE_OUTPUT].setVoltage(std::sin(inputs[PHASE_INPUT].getVoltage(c)*TAU)*5., c);
 
                 if (outputs[c+1].isConnected())
-                    outputs[c+1].setVoltage(std::sin(inputs[PHASE_INPUT].getVoltage(c)*TAU)*10.);
+                    outputs[c+1].setVoltage(std::sin(inputs[PHASE_INPUT].getVoltage(c)*TAU)*5.);
             }
 
         }
