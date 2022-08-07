@@ -197,9 +197,9 @@ struct DeModulatedWidget : ModuleWidget {
 		addChild(createWidget<ScrewSilver>(Vec(box.size.x - 2 * RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
         
         
-        addInput(createInputCentered<PJ301MPort>(mm2px(circlePoint(30.,20.,10.,0.)), module, DeModulated::FM_INPUT));
-		addInput(createInputCentered<PJ301MPort>(mm2px(circlePoint(30.,20.,10.,1.)), module, DeModulated::PHASE_INPUT));
-		addInput(createInputCentered<PJ301MPort>(mm2px(circlePoint(28.,20.,10.,2.)), module, DeModulated::OFFSET_INPUT));
+        addInput(createInputCentered<PJ301MPort>(mm2px(circlePoint(60.96/2.,40.,10.,0.*DEG_TO_RAD)), module, DeModulated::FM_INPUT));
+		addInput(createInputCentered<PJ301MPort>(mm2px(circlePoint(60.96/2.,40.,10.,180.*DEG_TO_RAD)), module, DeModulated::PHASE_INPUT));
+		addInput(createInputCentered<PJ301MPort>(mm2px(circlePoint(60.96/2.,40.,10.,270.*DEG_TO_RAD)), module, DeModulated::OFFSET_INPUT));
 		
         addParam(createParamCentered<VCVLatch>(mm2px(Vec(10.,10.)), module, DeModulated::ACCUMULATE_PARAM));
         addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(20.,10.)), module, DeModulated::RATE_PARAM));
@@ -208,8 +208,8 @@ struct DeModulatedWidget : ModuleWidget {
         addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(50.,10.)), module, DeModulated::OFFSETAMT_PARAM));
 
         const float offset = ((360./16.))*DEG_TO_RAD;
-        const float radius = 26.;
-        Vec circleCentre(30.,90.);
+        const float radius = 25.;
+        Vec circleCentre(60.96/2.,90.);
 
 		addOutput(createOutputCentered<PJ301MPort>(mm2px(circlePoint(circleCentre.x,circleCentre.y,0.,0.)), module, DeModulated::POLYPHASE_OUTPUT));
 		addOutput(createOutputCentered<PJ301MPort>(mm2px(circlePoint(circleCentre.x,circleCentre.y,radius,0.)), module, DeModulated::PHASE0_OUTPUT));
