@@ -1,9 +1,22 @@
 #include "plugin.hpp"
 
-#define PI 3.14159
-#define TAU 2.*PI
-using simd::float_4;
+//#define PI 3.141592653589793
+#define TAU 2.*M_PI // Make life easier
 
+#define DEG_TO_RAD 0.017453292519943 // For phase offset
+
+// will be used later for optimization once brute force implementation is done
+//using simd::float_4;
+
+
+Vec circlePoint(float x, float y, float radius, float angle){
+    Vec result(x,y);
+
+    result.x += radius * sin(angle);
+    result.y -= radius * cos(angle);
+    return result;
+
+}
 
 struct DeModulated : Module {
 	enum ParamIds {
@@ -44,8 +57,8 @@ struct DeModulated : Module {
 		NUM_LIGHTS
 	};
 
-    float_4 phases[4];
-
+    //float_4 phases[4];
+    float phases[15];
 
 	DeModulated() {
 		config(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS);
@@ -62,6 +75,7 @@ struct DeModulated : Module {
         configInput(FM_INPUT, "FM");
 
         configOutput(POLYPHASE_OUTPUT, "PolyPhase Out");
+        
         configOutput(PHASE0_OUTPUT, "Phase 0");
         configOutput(PHASE1_OUTPUT, "Phase 1");
         configOutput(PHASE2_OUTPUT, "Phase 2");
@@ -83,51 +97,89 @@ struct DeModulated : Module {
 	}
 
 	void process(const ProcessArgs& args) override {
-		// 0.16-0.19 us serial
-		// 0.23 us serial with all lambdas computed
-		// 0.15-0.18 us serial with all lambdas computed with SSE
+	
+        float rateParam = params[RATE_PARAM].getValue();
+        bool accumulateParam = params[ACCUMULATE_PARAM].getValue();
 
 		int channels = 16;
+        int numIn = inputs[PHASE_INPUT].getChannels();
+        float polyIn[numIn];
 
+        for (int c = 0;c < channels; c++){
+            polyIn[c] = inputs[PHASE_INPUT].getPolyVoltage(c);
+            outputs[POLYPHASE_OUTPUT].setVoltage(std::sin(polyIn[c]));
+            outputs[c+1].setVoltage(std::sin(polyIn[c]));;
+
+
+        }
 			
 
 		
-        outputs[POLYPHASE_OUTPUT].setchannels(channels);
-        outputs[PHASE0_OUTPUT].setchannels(1);
-        outputs[PHASE1_OUTPUT].setchannels(2);
-        outputs[PHASE2_OUTPUT].setchannels(3);
-        outputs[PHASE3_OUTPUT].setchannels(4);
-        outputs[PHASE4_OUTPUT].setchannels(5);
-        outputs[PHASE5_OUTPUT].setchannels(6);
-        outputs[PHASE6_OUTPUT].setchannels(7);
-        outputs[PHASE7_OUTPUT].setchannels(8);
-        outputs[PHASE8_OUTPUT].setchannels(9);
-        outputs[PHASE9_OUTPUT].setchannels(10);
-        outputs[PHASE10_OUTPUT].setchannels(11);
-        outputs[PHASE11_OUTPUT].setchannels(12);
-        outputs[PHASE12_OUTPUT].setchannels(13);
-        outputs[PHASE13_OUTPUT].setchannels(14);
-        outputs[PHASE14_OUTPUT].setchannels(15);
-		outputs[PHASE15_OUTPUT].setchannels(16);
-
+        outputs[POLYPHASE_OUTPUT].setChannels(channels);
+        
+        outputs[PHASE0_OUTPUT].setChannels(1);
+        outputs[PHASE1_OUTPUT].setChannels(1);
+        outputs[PHASE2_OUTPUT].setChannels(1);
+        outputs[PHASE3_OUTPUT].setChannels(1);
+        outputs[PHASE4_OUTPUT].setChannels(1);
+        outputs[PHASE5_OUTPUT].setChannels(1);
+        outputs[PHASE6_OUTPUT].setChannels(1);
+        outputs[PHASE7_OUTPUT].setChannels(1);
+        outputs[PHASE8_OUTPUT].setChannels(1);
+        outputs[PHASE9_OUTPUT].setChannels(1);
+        outputs[PHASE10_OUTPUT].setChannels(1);
+        outputs[PHASE11_OUTPUT].setChannels(1);
+        outputs[PHASE12_OUTPUT].setChannels(1);
+        outputs[PHASE13_OUTPUT].setChannels(1);
+        outputs[PHASE14_OUTPUT].setChannels(1);
+		outputs[PHASE15_OUTPUT].setChannels(1);
+        
 		}
-	}
+        
 
 	};
 
 
 
 struct DeModulatedWidget : ModuleWidget {
-	ADSRWidget(ADSR* module) {
+	DeModulatedWidget(DeModulated* module) {
+
 		setModule(module);
-		setPanel(createPanel(asset::plugin(pluginInstance, "BLANKPROVIDESVG!!!!!")));
+		setPanel(createPanel(asset::plugin(pluginInstance, "res/DeModulated.svg")));
+
 
 		addChild(createWidget<ScrewSilver>(Vec(RACK_GRID_WIDTH, 0)));
 		addChild(createWidget<ScrewSilver>(Vec(box.size.x - 2 * RACK_GRID_WIDTH, 0)));
 		addChild(createWidget<ScrewSilver>(Vec(RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
 		addChild(createWidget<ScrewSilver>(Vec(box.size.x - 2 * RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
+        
+        
+        addInput(createInputCentered<PJ301MPort>(mm2px(circlePoint(30.,20.,10.,0.)), module, DeModulated::FM_INPUT));
+		addInput(createInputCentered<PJ301MPort>(mm2px(circlePoint(30.,20.,10.,1.)), module, DeModulated::PHASE_INPUT));
+		addInput(createInputCentered<PJ301MPort>(mm2px(circlePoint(28.,20.,10.,2.)), module, DeModulated::OFFSET_INPUT));
+		
+        const float offset = ((360./16.))*DEG_TO_RAD;
+        const float radius = 26.;
+        Vec circleCentre(30.,90.);
 
-
+		addOutput(createOutputCentered<PJ301MPort>(mm2px(circlePoint(circleCentre.x,circleCentre.y,0.,0.)), module, DeModulated::POLYPHASE_OUTPUT));
+		addOutput(createOutputCentered<PJ301MPort>(mm2px(circlePoint(circleCentre.x,circleCentre.y,radius,0.)), module, DeModulated::PHASE0_OUTPUT));
+		addOutput(createOutputCentered<PJ301MPort>(mm2px(circlePoint(circleCentre.x,circleCentre.y,radius,offset)), module, DeModulated::PHASE1_OUTPUT));
+        addOutput(createOutputCentered<PJ301MPort>(mm2px(circlePoint(circleCentre.x,circleCentre.y,radius,offset*2)), module, DeModulated::PHASE2_OUTPUT));
+        addOutput(createOutputCentered<PJ301MPort>(mm2px(circlePoint(circleCentre.x,circleCentre.y,radius,offset*3)), module, DeModulated::PHASE3_OUTPUT));
+        addOutput(createOutputCentered<PJ301MPort>(mm2px(circlePoint(circleCentre.x,circleCentre.y,radius,offset*4)), module, DeModulated::PHASE4_OUTPUT));
+        addOutput(createOutputCentered<PJ301MPort>(mm2px(circlePoint(circleCentre.x,circleCentre.y,radius,offset*5)), module, DeModulated::PHASE5_OUTPUT));
+        addOutput(createOutputCentered<PJ301MPort>(mm2px(circlePoint(circleCentre.x,circleCentre.y,radius,offset*6)), module, DeModulated::PHASE6_OUTPUT));
+        addOutput(createOutputCentered<PJ301MPort>(mm2px(circlePoint(circleCentre.x,circleCentre.y,radius,offset*7)), module, DeModulated::PHASE7_OUTPUT));
+        addOutput(createOutputCentered<PJ301MPort>(mm2px(circlePoint(circleCentre.x,circleCentre.y,radius,offset*8)), module, DeModulated::PHASE8_OUTPUT));
+        addOutput(createOutputCentered<PJ301MPort>(mm2px(circlePoint(circleCentre.x,circleCentre.y,radius,offset*9)), module, DeModulated::PHASE9_OUTPUT));
+        addOutput(createOutputCentered<PJ301MPort>(mm2px(circlePoint(circleCentre.x,circleCentre.y,radius,offset*10)), module, DeModulated::PHASE10_OUTPUT));
+		addOutput(createOutputCentered<PJ301MPort>(mm2px(circlePoint(circleCentre.x,circleCentre.y,radius,offset*11)), module, DeModulated::PHASE11_OUTPUT));
+        addOutput(createOutputCentered<PJ301MPort>(mm2px(circlePoint(circleCentre.x,circleCentre.y,radius,offset*12)), module, DeModulated::PHASE12_OUTPUT));
+        addOutput(createOutputCentered<PJ301MPort>(mm2px(circlePoint(circleCentre.x,circleCentre.y,radius,offset*13)), module, DeModulated::PHASE13_OUTPUT));
+        addOutput(createOutputCentered<PJ301MPort>(mm2px(circlePoint(circleCentre.x,circleCentre.y,radius,offset*14)), module, DeModulated::PHASE14_OUTPUT));
+        addOutput(createOutputCentered<PJ301MPort>(mm2px(circlePoint(circleCentre.x,circleCentre.y,radius,offset*15)), module, DeModulated::PHASE15_OUTPUT));
+        
 	}
 };
 

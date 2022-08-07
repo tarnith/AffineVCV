@@ -1,7 +1,7 @@
 {
   "slug": "AffineVCV",
   "name": "Affine VCV",
-  "version": "0.0.1",
+  "version": "2.0.1",
   "license": "GPLV3",
   "brand": "AffineVCV",
   "author": "Tarnith",
@@ -10,16 +10,16 @@
   "pluginUrl": "https://tarnith.com",
   "manualUrl": "https://",
   "sourceUrl": "https://github.com/tarnith/AffineVCV",
-  "donateUrl": "",
-  "changelogUrl": "",
-  "modules": [{
-    "slug": "DeModulated",
-    "name": "DeModulated",
-    "description": "Multi-phase modulation",
-    "manualUrl": "https://tarnith.com",
-    "tags": [
-      "LFO",
-      "Polyphonic"
-    ]
-  }]
+  "modules": [
+    {
+      "slug": "DeModulated",
+      "name": "DeModulated",
+      "description": "Multi-phase modulation",
+      "manualUrl": "https://tarnith.com",
+      "tags": [
+        "LFO",
+        "Polyphonic"
+      ]
+    }
+  ]
 }
