@@ -109,35 +109,38 @@ struct DeModulated : Module {
         int numFM = inputs[FM_INPUT].getChannels();
         //int numOff = inputs[OFFSET_INPUT].isMonophonic
 
-        
-        float polyIn[numIn];
+       
 
         for (int c = 0;c < channels; c++){
 
             if(accumulateParam){ // Internal accumulator is enabled
 
-                phases[c] += (rateParam*inputs[FM_INPUT].getVoltage(c))*args.sampleTime; // Advance phases by tuning freq
+                
                 // Wrap float phases
                 if (phases[c] >= 1.){
                     phases[c] = -1.;
                 }
+                phases[c] += (rateParam+(inputs[FM_INPUT].getVoltage(c)*fmAmtParam))*args.sampleTime; // Advance phases by tuning freq
 
                 if (outputs[POLYPHASE_OUTPUT].isConnected())
-                    outputs[POLYPHASE_OUTPUT].setVoltage((std::sin(phases[c]*TAU+inputs[OFFSET_INPUT].getVoltage(c))*5.)-2.5, c);
+                    outputs[POLYPHASE_OUTPUT].setVoltage((std::sin((phases[c]*TAU)+inputs[OFFSET_INPUT].getVoltage(c))*5.)-2.5, c);
+
             }
             else{ // Internal accumulator is disabled
-                polyIn[c] = inputs[PHASE_INPUT].getPolyVoltage(c);
+
+                
                 if (outputs[POLYPHASE_OUTPUT].isConnected())
-                    outputs[POLYPHASE_OUTPUT].setVoltage(std::sin(polyIn[c]));
+                    outputs[POLYPHASE_OUTPUT].setVoltage(std::sin(inputs[PHASE_INPUT].getVoltage(c)*TAU)*10., c);
+
                 if (outputs[c+1].isConnected())
-                    outputs[c+1].setVoltage(std::sin(polyIn[c]*TAU)*10.);
+                    outputs[c+1].setVoltage(std::sin(inputs[PHASE_INPUT].getVoltage(c)*TAU)*10.);
             }
 
         }
 			
 
 		// Set Polyphase to output all channels
-        outputs[POLYPHASE_OUTPUT].setChannels(channels);
+        outputs[POLYPHASE_OUTPUT].setChannels(channels-1);
         
         // Need to macro this at some point
         // Set each output to a single channel
