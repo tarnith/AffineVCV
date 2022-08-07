@@ -1,22 +1,35 @@
 #include "plugin.hpp"
+// Sixteen phased outputs
+// Accumulation optional (Manual phase control)
+// Offset adjustment per voice
+// Full 16 channel signal path
 
-//#define PI 3.141592653589793
+// This is implemented intentionally verbose, without any use of SIMD or Templating
+// The idea is to make iteration/change quick and easy/brute force
+// and then improve the model for commercial release (while leaving the base idea open source)
+// The optimized/more time intensive version will be paid/donationware
+// with the freely available one left as an exercise in optimization for others to do so if they wish
+
+
+// TODO: 
+// All optimization, SIMD the phases, iterate in SIMD chunks rather than ++
+// UI fixes, draw design using NVG and remove the SVG
+// Implement FM parameter (debating if this is worth it/useful)
+
+// Future feature ideas:
+// Attenuverter/gain?
+// Knob to control number of parameters and dynamically adjust number of mono outputs (I swear I read on the forum there's an API call for this)
+
 #define TAU 2.*M_PI // Make life easier
-
 #define DEG_TO_RAD 0.017453292519943 // For phase offset
-
-// will be used later for optimization once brute force implementation is done
-//using simd::float_4;
 
 // Generate a point along a circle with
 // center point x,y, radius R, angle theta
 Vec circlePoint(float x, float y, float radius, float angle){
     Vec result(x,y);
-
     result.x += radius * sin(angle);
     result.y -= radius * cos(angle);
     return result;
-
 }
 
 struct DeModulated : Module {
@@ -58,10 +71,9 @@ struct DeModulated : Module {
 		NUM_LIGHTS
 	};
 
-    //float_4 phases[4];
-    //float deltaPhase[16];
-    float phases[16];
-    float deltaPhase = 0;
+    
+    float phases[16]; // Track the 16 voices
+    float deltaPhase = 0; // Increment by knob freq in Accumulate mode
 
 	DeModulated() {
 		config(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS);
@@ -107,6 +119,8 @@ struct DeModulated : Module {
         
 
 		int channels = 16;
+
+        // Presently unused
         int numIn = inputs[PHASE_INPUT].getChannels();
         int numFM = inputs[FM_INPUT].getChannels();
         //int numOff = inputs[OFFSET_INPUT].isMonophonic
@@ -115,7 +129,8 @@ struct DeModulated : Module {
 
         for (int c = 0;c < channels; c++){
             
-            if(accumulateParam){ // Internal accumulator is enabled
+            // Internal accumulator is enabled
+            if(accumulateParam){ 
          
                 deltaPhase = (rateParam)*args.sampleTime; 
 
@@ -123,27 +138,25 @@ struct DeModulated : Module {
                 phases[c] -= std::floor(phases[c]);
        
                 if (outputs[POLYPHASE_OUTPUT].isConnected()) // Only output accumulator if cable is attached
-                    //outputs[POLYPHASE_OUTPUT].setVoltage((std::sin((phases[c]+((params[OFFSET_PARAM].getValue()*DEG_TO_RAD)*c))+inputs[OFFSET_INPUT].getVoltage(c))*5.), c);
-
+                    // Sin of phases*TAU with offset added to phase, along with offset input, and then scaling output, mapped to all channels
                     outputs[POLYPHASE_OUTPUT].setVoltage(std::sin(phases[c]*TAU+(((params[OFFSET_PARAM].getValue()*(c*DEG_TO_RAD))+(inputs[OFFSET_INPUT].getVoltage(c)*offsetAmtParam))))*5.,c);
-                
-                if (outputs[c+1].isConnected()) // Same as above but iterating through mono outs
-                    //outputs[c+1].setVoltage((std::sin((phases[c]+((params[OFFSET_PARAM].getValue()*DEG_TO_RAD)*c))+inputs[OFFSET_INPUT].getVoltage(c))*5.), c);
-                    //outputs[c+1].setVoltage((std::sin(phases[c]*TAU+(params[OFFSET_PARAM].getValue()*(c*DEG_TO_RAD))+inputs[OFFSET_INPUT].getVoltage(c)*offsetAmtParam))*5.,c);
-                    //outputs[c+1].setVoltage(std::sin(phases[c]*TAU+(((params[OFFSET_PARAM].getValue()*(c*DEG_TO_RAD))+(inputs[OFFSET_INPUT].getVoltage(c)*offsetAmtParam))))*5.,c);
+                // Iterate through enum, skipping poly out
+                if (outputs[c+1].isConnected()) // Same as above but iterating through mono outs/assigning to each mono channel
                     outputs[c+1].setVoltage(std::sin((phases[c]*TAU)+(params[OFFSET_PARAM].getValue()*(c*DEG_TO_RAD))+(inputs[OFFSET_INPUT].getVoltage(c)*offsetAmtParam))*5.);
 
             }
-            else{ // Internal accumulator is disabled
-
-                
+            // Internal accumulator is disabled
+            else{
                 if (outputs[POLYPHASE_OUTPUT].isConnected())
+                    // If mono input, one to many
                     if (inputs[PHASE_INPUT].getChannels()==1)
                         outputs[POLYPHASE_OUTPUT].setVoltage(std::sin((inputs[PHASE_INPUT].getVoltage()*TAU)+(params[OFFSET_PARAM].getValue()*(c*DEG_TO_RAD))+(inputs[OFFSET_INPUT].getVoltage(c)*offsetAmtParam))*5.,c);
+                    // Poly input, many to many                   
                     else
                         outputs[POLYPHASE_OUTPUT].setVoltage(std::sin((inputs[PHASE_INPUT].getVoltage(c)*TAU)+(params[OFFSET_PARAM].getValue()*(c*DEG_TO_RAD))+(inputs[OFFSET_INPUT].getVoltage(c)*offsetAmtParam))*5., c);
-
+                // Iterate through enum, skipping poly out again, rigid but works
                 if (outputs[c+1].isConnected())
+                    // Same as above, but map to mono outs
                     if (inputs[PHASE_INPUT].getChannels()==1)
                         outputs[c+1].setVoltage(std::sin((inputs[PHASE_INPUT].getVoltage()*TAU)+params[OFFSET_PARAM].getValue()*(c*DEG_TO_RAD)+(inputs[OFFSET_INPUT].getVoltage(c)*offsetAmtParam))*5.);
                     else
@@ -189,6 +202,7 @@ struct DeModulatedWidget : ModuleWidget {
 
 		setModule(module);
 		setPanel(createPanel(asset::plugin(pluginInstance, "res/DeModulated.svg")));
+
         
 
 		addChild(createWidget<ScrewSilver>(Vec(RACK_GRID_WIDTH, 0)));
@@ -207,9 +221,12 @@ struct DeModulatedWidget : ModuleWidget {
         addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(40.,10.)), module, DeModulated::OFFSET_PARAM));
         addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(50.,10.)), module, DeModulated::OFFSETAMT_PARAM));
 
+        // Circle divided by #outs converted to radians
         const float offset = ((360./16.))*DEG_TO_RAD;
-        const float radius = 25.;
-        Vec circleCentre(60.96/2.,90.);
+        // Radius to draw outputs
+        const float radius = 25.; 
+        // Half width, 90mm down
+        Vec circleCentre(60.96/2.,90.); 
 
 		addOutput(createOutputCentered<PJ301MPort>(mm2px(circlePoint(circleCentre.x,circleCentre.y,0.,0.)), module, DeModulated::POLYPHASE_OUTPUT));
 		addOutput(createOutputCentered<PJ301MPort>(mm2px(circlePoint(circleCentre.x,circleCentre.y,radius,0.)), module, DeModulated::PHASE0_OUTPUT));
