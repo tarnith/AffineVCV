@@ -201,7 +201,7 @@ struct DeModulatedWidget : ModuleWidget {
 	DeModulatedWidget(DeModulated* module) {
 
 		setModule(module);
-		setPanel(createPanel(asset::plugin(pluginInstance, "res/DeModulated.svg")));
+		setPanel(createPanel(asset::plugin(pluginInstance, "res/DeModulatedalt.svg")));
 
         
 
