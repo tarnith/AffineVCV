@@ -1,4 +1,5 @@
 #include "plugin.hpp"
+
 // Sixteen phased outputs
 // Accumulation optional (Manual phase control)
 // Offset adjustment per voice
@@ -75,6 +76,9 @@ struct DeModulated : Module {
     float phases[16]; // Track the 16 voices
     float deltaPhase = 0; // Increment by knob freq in Accumulate mode
 
+    float sinOut;
+    float offset;
+
 	DeModulated() {
 		config(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS);
 
@@ -113,9 +117,11 @@ struct DeModulated : Module {
 	void process(const ProcessArgs& args) override {
 	
         float rateParam = params[RATE_PARAM].getValue();
+        float offsetParam = params[OFFSET_PARAM].getValue();
         bool accumulateParam = params[ACCUMULATE_PARAM].getValue();
         float fmAmtParam = params[FMAMT_PARAM].getValue();
         float offsetAmtParam = params[OFFSETAMT_PARAM].getValue();
+        
         
 
 		int channels = 16;
@@ -125,43 +131,70 @@ struct DeModulated : Module {
         int numFM = inputs[FM_INPUT].getChannels();
         //int numOff = inputs[OFFSET_INPUT].isMonophonic
 
-       
+        
+        deltaPhase = rateParam*args.sampleTime; 
+        
 
         for (int c = 0;c < channels; c++){
             
             // Internal accumulator is enabled
             if(accumulateParam){ 
          
-                deltaPhase = (rateParam)*args.sampleTime; 
-
                 phases[c] += deltaPhase;
                 phases[c] -= std::floor(phases[c]);
-       
-                if (outputs[POLYPHASE_OUTPUT].isConnected()) // Only output accumulator if cable is attached
+
+                // Only output accumulator if cable is attached
+                if (outputs[POLYPHASE_OUTPUT].isConnected()){ 
                     // Sin of phases*TAU with offset added to phase, along with offset input, and then scaling output, mapped to all channels
-                    outputs[POLYPHASE_OUTPUT].setVoltage(std::sin(phases[c]*TAU+(((params[OFFSET_PARAM].getValue()*(c*DEG_TO_RAD))+(inputs[OFFSET_INPUT].getVoltage(c)*offsetAmtParam))))*5.,c);
+                    offset = c*DEG_TO_RAD*offsetParam;
+                    offset += (inputs[OFFSET_INPUT].getVoltage(c)*offsetAmtParam);
+                    sinOut = std::sin(phases[c]*TAU+offset);
+                    outputs[POLYPHASE_OUTPUT].setVoltage(sinOut*5.,c);
+                    }
                 // Iterate through enum, skipping poly out
-                if (outputs[c+1].isConnected()) // Same as above but iterating through mono outs/assigning to each mono channel
-                    outputs[c+1].setVoltage(std::sin((phases[c]*TAU)+(params[OFFSET_PARAM].getValue()*(c*DEG_TO_RAD))+(inputs[OFFSET_INPUT].getVoltage(c)*offsetAmtParam))*5.);
+                if (outputs[c+1].isConnected()){ // Same as above but iterating through mono outs/assigning to each mono channel
+                    offset = c*DEG_TO_RAD*offsetParam;
+                    offset = (inputs[OFFSET_INPUT].getVoltage(c)*offsetAmtParam)+offset;
+                    sinOut = std::sin(phases[c]*TAU+offset);
+                    outputs[c+1].setVoltage(sinOut*5.);
+                    }
 
             }
             // Internal accumulator is disabled
             else{
-                if (outputs[POLYPHASE_OUTPUT].isConnected())
+                if (outputs[POLYPHASE_OUTPUT].isConnected()){
                     // If mono input, one to many
-                    if (inputs[PHASE_INPUT].getChannels()==1)
-                        outputs[POLYPHASE_OUTPUT].setVoltage(std::sin((inputs[PHASE_INPUT].getVoltage()*TAU)+(params[OFFSET_PARAM].getValue()*(c*DEG_TO_RAD))+(inputs[OFFSET_INPUT].getVoltage(c)*offsetAmtParam))*5.,c);
+                    if (inputs[PHASE_INPUT].getChannels()==1){
+                        offset = c*DEG_TO_RAD*offsetParam;
+                        offset += (inputs[OFFSET_INPUT].getVoltage(c)*offsetAmtParam);
+                        sinOut = std::sin((inputs[PHASE_INPUT].getVoltage()*TAU)+offset);
+                        outputs[POLYPHASE_OUTPUT].setVoltage(sinOut*5.,c);
+                    }
                     // Poly input, many to many                   
-                    else
-                        outputs[POLYPHASE_OUTPUT].setVoltage(std::sin((inputs[PHASE_INPUT].getVoltage(c)*TAU)+(params[OFFSET_PARAM].getValue()*(c*DEG_TO_RAD))+(inputs[OFFSET_INPUT].getVoltage(c)*offsetAmtParam))*5., c);
-                // Iterate through enum, skipping poly out again, rigid but works
-                if (outputs[c+1].isConnected())
-                    // Same as above, but map to mono outs
-                    if (inputs[PHASE_INPUT].getChannels()==1)
-                        outputs[c+1].setVoltage(std::sin((inputs[PHASE_INPUT].getVoltage()*TAU)+params[OFFSET_PARAM].getValue()*(c*DEG_TO_RAD)+(inputs[OFFSET_INPUT].getVoltage(c)*offsetAmtParam))*5.);
-                    else
-                        outputs[c+1].setVoltage(std::sin((inputs[PHASE_INPUT].getVoltage(c)*TAU)+(params[OFFSET_PARAM].getValue()*(c*DEG_TO_RAD))+(inputs[OFFSET_INPUT].getVoltage(c)*offsetAmtParam))*5.);
+                    else{
+                        offset = c*DEG_TO_RAD*offsetParam;
+                        offset += (inputs[OFFSET_INPUT].getVoltage(c)*offsetAmtParam);
+                        sinOut = std::sin((inputs[PHASE_INPUT].getVoltage(c)*TAU)+offset);
+                        outputs[POLYPHASE_OUTPUT].setVoltage(sinOut*5., c);
+                    }
+                }
 
+                // Iterate through enum, skipping poly out again, rigid but works
+                if (outputs[c+1].isConnected()){
+                    // Same as above, but map to mono outs
+                    if (inputs[PHASE_INPUT].getChannels()==1){
+                        offset = c*DEG_TO_RAD*offsetParam;
+                        offset += (inputs[OFFSET_INPUT].getVoltage(c)*offsetAmtParam);
+                        sinOut = std::sin((inputs[PHASE_INPUT].getVoltage()*TAU)+offset);
+                        outputs[c+1].setVoltage(sinOut*5.);
+                    }
+                    else{
+                        offset = c*DEG_TO_RAD*offsetParam;
+                        offset = (inputs[OFFSET_INPUT].getVoltage(c)*offsetAmtParam)+offset;
+                        sinOut = std::sin(phases[c]*TAU+offset);
+                        outputs[c+1].setVoltage(sinOut*5.);
+                    }
+                }
                         
             }
 
@@ -169,10 +202,8 @@ struct DeModulated : Module {
 			
 
 		// Set Polyphase to output all channels
-        outputs[POLYPHASE_OUTPUT].setChannels(channels-1);
-        
-        // Need to macro this at some point
-        // Set each output to a single channel
+        outputs[POLYPHASE_OUTPUT].setChannels(channels);
+        // Set each mono output to a single channel
         outputs[PHASE0_OUTPUT].setChannels(1);
         outputs[PHASE1_OUTPUT].setChannels(1);
         outputs[PHASE2_OUTPUT].setChannels(1);
